@@ -1,6 +1,6 @@
 # Arlo
 
-Arlo is a local-first companion for thoughtful progress: goals, tasks, reflections, private notes, and user-controlled permissions.
+Arlo is a local-first companion for thoughtful progress: goals, tasks, reflections, private notes, and user-controlled permissions. What I call an AI Habit and Routine Assistant 
 
 ## Current phase
 

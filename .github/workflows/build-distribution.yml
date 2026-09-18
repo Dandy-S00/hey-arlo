@@ -1,0 +1,80 @@
+name: Build Arlo distributions
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  desktop:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            command: linux:AppImage,linux:deb
+          - os: windows-latest
+            command: win:nsis
+          - os: macos-latest
+            command: mac:dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: npx electron-builder --${{ matrix.command }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arlo-${{ runner.os }}
+          path: release/*
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: npx cap add android
+      - run: npx cap sync android
+      - name: Build signed release APK
+        env:
+          ARLO_KEYSTORE_BASE64: ${{ secrets.ARLO_KEYSTORE_BASE64 }}
+          ARLO_KEYSTORE_PASSWORD: ${{ secrets.ARLO_KEYSTORE_PASSWORD }}
+          ARLO_KEY_ALIAS: ${{ secrets.ARLO_KEY_ALIAS }}
+          ARLO_KEY_PASSWORD: ${{ secrets.ARLO_KEY_PASSWORD }}
+        run: |
+          test -n "$ARLO_KEYSTORE_BASE64"
+          mkdir -p android/app
+          echo "$ARLO_KEYSTORE_BASE64" | base64 --decode > android/app/arlo-release.keystore
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/build.gradle')
+          s = p.read_text()
+          s += '''\nandroid {\n    signingConfigs { release {\n        storeFile file("arlo-release.keystore")\n        storePassword System.getenv("ARLO_KEYSTORE_PASSWORD")\n        keyAlias System.getenv("ARLO_KEY_ALIAS")\n        keyPassword System.getenv("ARLO_KEY_PASSWORD")\n    }}\n    buildTypes { release { signingConfig signingConfigs.release }}\n}\n'''
+          p.write_text(s)
+          PY
+          cd android && ./gradlew assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arlo-android
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error

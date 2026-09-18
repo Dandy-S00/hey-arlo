@@ -1,0 +1,16 @@
+appId: com.v3rcy.arlo
+productName: Arlo
+directories:
+  output: release
+files:
+  - dist/**
+  - electron/**
+mac:
+  target: dmg
+win:
+  target: nsis
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility

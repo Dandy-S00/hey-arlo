@@ -1,0 +1,88 @@
+name: Test and deploy to Azure
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: azure-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arlo-dist-${{ github.sha }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy-preview:
+    name: Deploy pull request preview
+    if: github.event_name == 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy preview to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: "/"
+          output_location: "dist"
+          app_build_command: "npm install && npm run build"
+          deployment_environment: "pr-${{ github.event.number }}"
+
+  deploy-production:
+    name: Deploy production to Azure
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy production to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: "/"
+          output_location: "dist"
+          app_build_command: "npm install && npm run build"
+          skip_app_build: false

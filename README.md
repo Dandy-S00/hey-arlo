@@ -1,12 +1,18 @@
-# Hey Arlo
+# Arlo
 
-A quirky, local-first life coach companion inspired by the warm, oddball energy of 90s animated companions. The name is an original project name, not an official character product.
+Arlo is a local-first companion for thoughtful progress: goals, tasks, reflections, private notes, and user-controlled permissions.
 
-## Current status
+## Phase two status
 
-This repository contains the first browser MVP: goals, tasks, check-ins, private journal notes, and a visible privacy control room. Data is stored in the browser's local storage for this prototype and is not sent to a server.
+This phase begins the privacy foundation:
 
-This is **not production-ready secure storage yet**. Before using real sensitive data, replace local storage with an encrypted database backed by platform key stores, add a proper consent/policy engine, and implement authenticated same-network sync.
+- Product name changed from Hey Arlo to **Arlo**.
+- Package and document branding updated.
+- Local privacy control room retained.
+- A visible local audit trail now records important task, journal, goal, check-in, permission, and pause actions.
+- Privacy copy now distinguishes prototype storage from production-grade encrypted storage.
+
+The prototype still uses browser local storage. Do not use it for sensitive production data yet. The next security implementation should replace this with encrypted persistence backed by platform key stores.
 
 ## Run locally
 
@@ -15,18 +21,15 @@ npm install
 npm run dev
 ```
 
-## Product guardrails
+## Phase roadmap
 
-- No hidden monitoring or silent recording.
-- Device capabilities are opt-in and purpose-specific.
-- Cloud AI must be disabled by default and disclose what leaves the device.
-- Same-network sync must use authenticated end-to-end encryption.
-- iOS, Android, Windows, and Linux capabilities must be implemented through each platform's permission model.
+1. Validate the product loop with local-only data.
+2. Add encrypted persistence and migration tests.
+3. Add authenticated same-network pairing and end-to-end encrypted sync.
+4. Add native adapters for Android, iOS, Windows, and Linux.
+5. Add local model routing and optional redacted cloud fallback.
+6. Threat-model, accessibility-test, performance-test, and release-sign every platform build.
 
-## Roadmap
+## Guardrails
 
-1. Replace prototype storage with encrypted local persistence.
-2. Add device pairing and same-network encrypted sync.
-3. Add native permission adapters per platform.
-4. Add on-device model routing and optional redacted cloud fallback.
-5. Add tests, threat modeling, accessibility review, and release signing.
+No hidden monitoring, silent recording, keystroke logging, covert camera/microphone use, or access to another person's device without informed consent.

@@ -1,16 +1,17 @@
-// Consent-first memory and personality policy.
-// This module deliberately has no screen-reading, mailbox-reading, or background
-// collection code. Sources must be explicitly imported and approved by the user.
+// Low-friction, consent-first adaptation policy.
+// Arlo can learn locally and test low-risk communication changes, but it
+// cannot silently collect from arbitrary devices or permanently retain raw data.
 
 export const SOURCE_TYPES = Object.freeze({
   userText: 'user_text',
   importedFile: 'imported_file',
   connectedMailbox: 'connected_mailbox',
-  connectedCalendar: 'connected_calendar'
+  connectedCalendar: 'connected_calendar',
+  userTriggeredScreen: 'user_triggered_screen'
 });
 
 export const DEFAULT_MEMORY = Object.freeze({
-  version: 1,
+  version: 2,
   entries: [],
   preferences: {
     tone: 'warm, direct, and encouraging',
@@ -19,10 +20,13 @@ export const DEFAULT_MEMORY = Object.freeze({
     sensitiveTraits: [],
     sourcesAllowed: [SOURCE_TYPES.userText]
   },
-  review: {
-    lastReviewedAt: null,
-    pendingSuggestions: []
-  }
+  learning: {
+    rawRetentionDays: 7,
+    automaticLowRiskTrials: true,
+    requireApprovalForPermanentChanges: true,
+    pendingTrials: []
+  },
+  review: { lastReviewedAt: null, pendingSuggestions: [] }
 });
 
 export function createMemoryEntry({ summary, sourceType = SOURCE_TYPES.userText, sourceLabel = 'User input', confidence = 'user-confirmed' }) {
@@ -31,9 +35,40 @@ export function createMemoryEntry({ summary, sourceType = SOURCE_TYPES.userText,
   return { id: crypto.randomUUID(), summary: summary.trim(), sourceType, sourceLabel, confidence, createdAt: new Date().toISOString(), status: 'active' };
 }
 
+export function proposeAdaptiveTrial(memory, proposedChange, evidence = []) {
+  if (!proposedChange?.trim()) throw new Error('A proposed change is required.');
+  const trial = {
+    id: crypto.randomUUID(),
+    proposedChange: proposedChange.trim(),
+    evidence: evidence.slice(0, 5).map(item => ({ id: item.id, summary: item.summary })),
+    startedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+    status: 'trial',
+    userFeedback: null
+  };
+  memory.learning.pendingTrials.push(trial);
+  return trial;
+}
+
+export function recordTrialFeedback(memory, trialId, liked) {
+  const trial = memory.learning.pendingTrials.find(item => item.id === trialId);
+  if (!trial) throw new Error('Adaptation trial not found.');
+  trial.userFeedback = Boolean(liked);
+  trial.status = liked ? 'approved' : 'rejected';
+  if (liked && memory.learning.requireApprovalForPermanentChanges) {
+    memory.preferences.communicationStyle = trial.proposedChange;
+  }
+  return memory;
+}
+
 export function proposePersonalityUpdate(memory, proposal) {
-  // AI may propose; it must not silently apply. The user confirms each change.
-  return { id: crypto.randomUUID(), proposal: proposal.trim(), basedOn: memory.entries.slice(0, 10).map(entry => entry.id), createdAt: new Date().toISOString(), status: 'needs-user-review' };
+  return {
+    id: crypto.randomUUID(),
+    proposal: proposal.trim(),
+    basedOn: memory.entries.slice(0, 10).map(entry => entry.id),
+    createdAt: new Date().toISOString(),
+    status: 'needs-user-review'
+  };
 }
 
 export function approveMemoryProposal(memory, proposalId) {

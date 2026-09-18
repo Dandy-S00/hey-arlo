@@ -31,7 +31,7 @@ services:
     expose: ["3001"]
     environment:
       PORT: 3001
-      ARLO_API_KEY: ${ARLO_API_KEY:?set ARLO_API_KEY}
+      ARLO_API_KEY: "${ARLO_API_KEY:-}"
     read_only: true
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]

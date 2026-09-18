@@ -1,0 +1,31 @@
+# Azure DevOps pipeline for deploying Arlo to Azure Static Web Apps.
+# Configure the secret variable azure_static_web_apps_api_token in the pipeline UI.
+
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  node_version: '20.x'
+
+steps:
+  - task: NodeTool@0
+    displayName: Use Node.js $(node_version)
+    inputs:
+      versionSpec: $(node_version)
+
+  - script: npm install
+    displayName: Install dependencies
+
+  - script: npm run build
+    displayName: Build production bundle
+
+  - task: AzureStaticWebApp@0
+    displayName: Deploy to Azure Static Web Apps
+    inputs:
+      app_location: 'dist'
+      output_location: ''
+      skip_app_build: true
+      azure_static_web_apps_api_token: $(azure_static_web_apps_api_token)

@@ -335,4 +335,55 @@ class GeminiManager(context: Context) {
             Pair("🔒 [100% On-Device Fallback • Offline Mode]\n\n$fallback", false)
         }
     }
+
+    suspend fun generateResponse(prompt: String): String = withContext(Dispatchers.IO) {
+        val config = _configFlow.value
+        val effectiveKey = config.apiKey.ifBlank {
+            System.getenv("GEMINI_API_KEY") ?: ""
+        }
+        if (effectiveKey.isBlank() || config.activeTier.isCompletelyLocal || !config.cloudAiConsentGranted) {
+            return@withContext ""
+        }
+        try {
+            val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/${config.activeTier.modelName}:generateContent?key=$effectiveKey"
+            val url = URL(endpoint)
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                connectTimeout = 30000
+                readTimeout = 30000
+                doOutput = true
+                doInput = true
+            }
+
+            val requestJson = JSONObject().apply {
+                val contentsArr = JSONArray()
+                contentsArr.put(JSONObject().apply {
+                    val partsArr = JSONArray()
+                    partsArr.put(JSONObject().put("text", prompt))
+                    put("parts", partsArr)
+                })
+                put("contents", contentsArr)
+            }
+
+            OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
+                writer.write(requestJson.toString())
+                writer.flush()
+            }
+
+            if (connection.responseCode in 200..299) {
+                val responseText = connection.inputStream.bufferedReader().use(BufferedReader::readText)
+                val jsonResponse = JSONObject(responseText)
+                val candidates = jsonResponse.optJSONArray("candidates")
+                val firstCandidate = candidates?.optJSONObject(0)
+                val content = firstCandidate?.optJSONObject("content")
+                val parts = content?.optJSONArray("parts")
+                parts?.optJSONObject(0)?.optString("text", "") ?: ""
+            } else {
+                ""
+            }
+        } catch (e: Exception) {
+            ""
+        }
+    }
 }

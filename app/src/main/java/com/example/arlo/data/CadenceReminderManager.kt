@@ -10,7 +10,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 
-class CadenceReminderManager(context: Context) {
+class CadenceReminderManager(
+    context: Context,
+    private val rhythmManager: NaturalRhythmManager = NaturalRhythmManager(context)
+) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("arlo_cadence_prefs", Context.MODE_PRIVATE)
 
@@ -113,7 +116,8 @@ class CadenceReminderManager(context: Context) {
     fun checkIfCheckpointDue(): Boolean {
         val lastTimestamp = prefs.getLong("last_catchup_checkpoint_ts", 0L)
         val now = System.currentTimeMillis()
-        val isDue = (now - lastTimestamp) >= CADENCE_INTERVAL_MS
+        val interval = rhythmManager.getAdaptiveCadenceIntervalMs()
+        val isDue = (now - lastTimestamp) >= interval
         if (isDue) {
             _showCheckpointDialog.value = true
         }

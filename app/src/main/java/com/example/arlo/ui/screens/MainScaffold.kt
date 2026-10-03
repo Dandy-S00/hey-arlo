@@ -31,6 +31,7 @@ import com.example.arlo.data.FloatingBubblePreferenceManager
 import com.example.arlo.data.GeminiManager
 import com.example.arlo.data.GoalStateManager
 import com.example.arlo.data.JournalStateManager
+import com.example.arlo.data.NaturalRhythmManager
 import com.example.arlo.data.ResourceIntelligenceManager
 import com.example.arlo.model.ArloState
 import com.example.arlo.ui.components.AmbientWeatherDialog
@@ -43,6 +44,7 @@ import com.example.arlo.ui.components.ConnectorsDialog
 import com.example.arlo.ui.components.DailyCheckInPromptDialog
 import com.example.arlo.ui.components.FloatingBubbleSettingsDialog
 import com.example.arlo.ui.components.GeminiSettingsDialog
+import com.example.arlo.ui.components.NaturalRhythmDialog
 import com.example.arlo.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -78,13 +80,15 @@ fun MainScaffold(
     val ambientWeatherManager = remember { AmbientWeatherManager(context) }
     val connectedAppsManager = remember { ConnectedAppsManager(context) }
     val floatingBubbleManager = remember { FloatingBubblePreferenceManager(context) }
-    val cadenceManager = remember { CadenceReminderManager(context) }
+    val rhythmManager = remember { NaturalRhythmManager(context) }
+    val cadenceManager = remember { CadenceReminderManager(context, rhythmManager) }
     val resourceManager = remember { ResourceIntelligenceManager(context) }
 
     var showAmbientWeatherDialog by remember { mutableStateOf(false) }
     var showConnectedAppsDialog by remember { mutableStateOf(false) }
     var showFloatingBubbleSettingsDialog by remember { mutableStateOf(false) }
     var showCatchUpDialog by remember { mutableStateOf(false) }
+    var showNaturalRhythmDialog by remember { mutableStateOf(false) }
 
     val atmosphere by ambientWeatherManager.atmosphereFlow.collectAsState()
     val isFloatingBubbleActive by floatingBubbleManager.isBubbleEnabled.collectAsState()
@@ -224,6 +228,32 @@ fun MainScaffold(
                                     color = ArloPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        // Natural Rhythm & Heartbeat Chip Action
+                        val rhythmProfile by rhythmManager.rhythmProfileFlow.collectAsState()
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = ArloDarkSurfaceVariant,
+                            modifier = Modifier
+                                .clickable { showNaturalRhythmDialog = true }
+                                .padding(end = 4.dp)
+                                .testTag("natural_rhythm_top_action")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(rhythmProfile.chronotype.icon, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "${rhythmProfile.adaptiveHeartbeatHours}h",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ArloPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
                                 )
                             }
                         }
@@ -486,17 +516,10 @@ fun MainScaffold(
                             },
                             onToggleRead = { id ->
                                 repository.toggleReadLink(id)
+                                rhythmManager.recordInteraction("toggle_link")
                                 val msg = cadenceManager.awardProgress(15, 1)
                                 if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             }
-                        )
-                        ArloTab.MEMORY -> MemoryScreen(
-                            memory = state.memory,
-                            onStartTrial = { repository.startAdaptiveTrial(it) },
-                            onTrialFeedback = { id, keep -> repository.recordTrialFeedback(id, keep) },
-                            onAddMemoryEntry = { summary, type, label -> repository.addMemoryEntry(summary, type, label) },
-                            onRevokeSource = { repository.revokeSource(it) },
-                            onDeleteMemoryEntry = { repository.deleteMemoryEntry(it) }
                         )
                         ArloTab.PRIVACY -> PrivacyScreen(
                             permissions = state.permissions,
@@ -686,6 +709,13 @@ fun MainScaffold(
             briefing = cadenceManager.generateBriefing(state),
             cadenceManager = cadenceManager,
             onDismiss = { showCatchUpDialog = false }
+        )
+    }
+
+    if (showNaturalRhythmDialog) {
+        NaturalRhythmDialog(
+            rhythmManager = rhythmManager,
+            onDismiss = { showNaturalRhythmDialog = false }
         )
     }
 

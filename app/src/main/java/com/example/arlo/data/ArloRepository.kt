@@ -191,19 +191,142 @@ class ArloRepository(
     }
 
     // Goal actions
-    fun addGoal(title: String, detail: String) {
+    fun addGoal(title: String, detail: String, category: String = "Habits & Routine", targetValue: Int = 1, unit: String = "step") {
         if (title.isBlank()) return
         val current = _state.value ?: return
-        val newGoal = Goal(title = title.trim(), detail = detail.trim(), done = false)
+        val newGoal = Goal(
+            title = title.trim(),
+            detail = detail.trim(),
+            category = category,
+            targetValue = targetValue.coerceAtLeast(1),
+            currentValue = 0,
+            unit = unit,
+            createdAt = nowIso(),
+            done = false
+        )
         _state.value = current.copy(goals = listOf(newGoal) + current.goals)
-        audit("goal created")
+        audit("goal created: $title")
+    }
+
+    fun addGoal(goal: Goal) {
+        val current = _state.value ?: return
+        _state.value = current.copy(goals = listOf(goal.copy(createdAt = if (goal.createdAt.isEmpty()) nowIso() else goal.createdAt)) + current.goals)
+        audit("goal created: ${goal.title}")
+    }
+
+    fun updateGoal(goal: Goal) {
+        val current = _state.value ?: return
+        val updated = current.goals.map { if (it.id == goal.id) goal else it }
+        _state.value = current.copy(goals = updated)
+        audit("goal updated: ${goal.title}")
+    }
+
+    fun markGoalComplete(id: String, complete: Boolean) {
+        val current = _state.value ?: return
+        val updated = current.goals.map { goal ->
+            if (goal.id == id) {
+                goal.copy(
+                    done = complete,
+                    currentValue = if (complete) goal.targetValue else 0,
+                    completedAt = if (complete) nowIso() else null,
+                    milestones = if (complete) goal.milestones.map { it.copy(done = true) } else goal.milestones
+                )
+            } else goal
+        }
+        _state.value = current.copy(goals = updated)
+        audit("goal marked ${if (complete) "complete" else "incomplete"}")
     }
 
     fun toggleGoal(id: String) {
         val current = _state.value ?: return
-        val updated = current.goals.map { if (it.id == id) it.copy(done = !it.done) else it }
+        val goal = current.goals.find { it.id == id } ?: return
+        markGoalComplete(id, !goal.done)
+    }
+
+    fun incrementGoalProgress(id: String, amount: Int = 1) {
+        val current = _state.value ?: return
+        val updated = current.goals.map { goal ->
+            if (goal.id == id) {
+                val newCurrent = (goal.currentValue + amount).coerceAtLeast(0)
+                val isDone = newCurrent >= goal.targetValue
+                goal.copy(
+                    currentValue = newCurrent,
+                    done = isDone,
+                    completedAt = if (isDone && goal.completedAt == null) nowIso() else if (!isDone) null else goal.completedAt
+                )
+            } else goal
+        }
         _state.value = current.copy(goals = updated)
-        audit("goal updated")
+        audit("goal progress incremented")
+    }
+
+    fun updateGoalProgressValue(id: String, newValue: Int) {
+        val current = _state.value ?: return
+        val updated = current.goals.map { goal ->
+            if (goal.id == id) {
+                val sanitized = newValue.coerceAtLeast(0)
+                val isDone = sanitized >= goal.targetValue
+                goal.copy(
+                    currentValue = sanitized,
+                    done = isDone,
+                    completedAt = if (isDone && goal.completedAt == null) nowIso() else if (!isDone) null else goal.completedAt
+                )
+            } else goal
+        }
+        _state.value = current.copy(goals = updated)
+        audit("goal progress updated")
+    }
+
+    fun toggleMilestone(goalId: String, milestoneId: String) {
+        val current = _state.value ?: return
+        val updated = current.goals.map { goal ->
+            if (goal.id == goalId) {
+                val updatedMilestones = goal.milestones.map {
+                    if (it.id == milestoneId) it.copy(done = !it.done) else it
+                }
+                val allDone = updatedMilestones.isNotEmpty() && updatedMilestones.all { it.done }
+                goal.copy(
+                    milestones = updatedMilestones,
+                    done = allDone,
+                    completedAt = if (allDone && goal.completedAt == null) nowIso() else if (!allDone) null else goal.completedAt
+                )
+            } else goal
+        }
+        _state.value = current.copy(goals = updated)
+        audit("goal milestone updated")
+    }
+
+    fun addMilestone(goalId: String, milestoneTitle: String) {
+        if (milestoneTitle.isBlank()) return
+        val current = _state.value ?: return
+        val updated = current.goals.map { goal ->
+            if (goal.id == goalId) {
+                val newMilestone = Milestone(title = milestoneTitle.trim(), done = false)
+                goal.copy(
+                    milestones = goal.milestones + newMilestone,
+                    done = false,
+                    completedAt = null
+                )
+            } else goal
+        }
+        _state.value = current.copy(goals = updated)
+        audit("goal milestone added")
+    }
+
+    fun deleteMilestone(goalId: String, milestoneId: String) {
+        val current = _state.value ?: return
+        val updated = current.goals.map { goal ->
+            if (goal.id == goalId) {
+                val remaining = goal.milestones.filter { it.id != milestoneId }
+                val allDone = remaining.isNotEmpty() && remaining.all { it.done }
+                goal.copy(
+                    milestones = remaining,
+                    done = if (remaining.isNotEmpty()) allDone else goal.done
+                )
+            } else goal
+        }
+        _state.value = current.copy(goals = updated)
+        audit("goal milestone deleted")
     }
 
     fun deleteGoal(id: String) {
@@ -213,13 +336,39 @@ class ArloRepository(
         audit("goal deleted")
     }
 
-    // Note actions
-    fun addNote(body: String) {
+    // Note & Reflection actions
+    fun addNote(body: String, prompt: String = "", mood: String = "", tags: List<String> = emptyList()) {
+        addReflection(body = body, prompt = prompt, mood = mood, tags = tags)
+    }
+
+    fun addReflection(body: String, prompt: String = "", mood: String = "", tags: List<String> = emptyList()) {
         if (body.isBlank()) return
         val current = _state.value ?: return
-        val newNote = Note(body = body.trim(), createdAt = nowIso())
+        val newNote = Note(
+            body = body.trim(),
+            prompt = prompt.trim(),
+            mood = mood.trim(),
+            tags = tags,
+            createdAt = nowIso()
+        )
         _state.value = current.copy(notes = listOf(newNote) + current.notes)
-        audit("journal note created")
+        audit("daily reflection saved")
+    }
+
+    fun updateReflection(id: String, newBody: String, newMood: String = "") {
+        if (newBody.isBlank()) return
+        val current = _state.value ?: return
+        val updated = current.notes.map { note ->
+            if (note.id == id) {
+                note.copy(
+                    body = newBody.trim(),
+                    mood = if (newMood.isNotBlank()) newMood.trim() else note.mood,
+                    updatedAt = nowIso()
+                )
+            } else note
+        }
+        _state.value = current.copy(notes = updated)
+        audit("daily reflection updated")
     }
 
     fun deleteNote(id: String) {
@@ -227,6 +376,62 @@ class ArloRepository(
         val updated = current.notes.filter { it.id != id }
         _state.value = current.copy(notes = updated)
         audit("journal note deleted")
+    }
+
+    // Saved Links (Linksi Module)
+    fun addSavedLink(
+        url: String,
+        title: String = "",
+        notes: String = "",
+        tags: List<String> = emptyList(),
+        isFavorite: Boolean = false
+    ) {
+        if (url.isBlank()) return
+        val current = _state.value ?: return
+        val formattedUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            "https://${url.trim()}"
+        } else {
+            url.trim()
+        }
+        val newLink = SavedLink(
+            url = formattedUrl,
+            title = title.trim(),
+            notes = notes.trim(),
+            tags = tags.map { it.trim() }.filter { it.isNotBlank() },
+            isFavorite = isFavorite,
+            createdAt = nowIso(),
+            updatedAt = nowIso()
+        )
+        _state.value = current.copy(savedLinks = listOf(newLink) + current.savedLinks)
+        audit("saved link added: ${newLink.displayTitle}")
+    }
+
+    fun updateSavedLink(link: SavedLink) {
+        val current = _state.value ?: return
+        val updated = current.savedLinks.map { if (it.id == link.id) link.copy(updatedAt = nowIso()) else it }
+        _state.value = current.copy(savedLinks = updated)
+        audit("saved link updated: ${link.displayTitle}")
+    }
+
+    fun deleteSavedLink(id: String) {
+        val current = _state.value ?: return
+        val updated = current.savedLinks.filter { it.id != id }
+        _state.value = current.copy(savedLinks = updated)
+        audit("saved link deleted")
+    }
+
+    fun toggleFavoriteLink(id: String) {
+        val current = _state.value ?: return
+        val updated = current.savedLinks.map { if (it.id == id) it.copy(isFavorite = !it.isFavorite) else it }
+        _state.value = current.copy(savedLinks = updated)
+        audit("saved link favorite toggled")
+    }
+
+    fun toggleReadLink(id: String) {
+        val current = _state.value ?: return
+        val updated = current.savedLinks.map { if (it.id == id) it.copy(isRead = !it.isRead) else it }
+        _state.value = current.copy(savedLinks = updated)
+        audit("saved link read state toggled")
     }
 
     // Check-in

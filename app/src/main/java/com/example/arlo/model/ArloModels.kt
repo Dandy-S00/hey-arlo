@@ -4,26 +4,97 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-data class Goal(
+data class Milestone(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
-    val detail: String = "",
     val done: Boolean = false
 ) {
     fun toJsonObject(): JSONObject = JSONObject().apply {
         put("id", id)
         put("title", title)
-        put("detail", detail)
         put("done", done)
     }
 
     companion object {
-        fun fromJsonObject(json: JSONObject): Goal = Goal(
+        fun fromJsonObject(json: JSONObject): Milestone = Milestone(
             id = json.optString("id", UUID.randomUUID().toString()),
             title = json.optString("title", ""),
-            detail = json.optString("detail", ""),
             done = json.optBoolean("done", false)
         )
+    }
+}
+
+data class Goal(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val detail: String = "",
+    val done: Boolean = false,
+    val category: String = "Habits & Routine",
+    val targetValue: Int = 1,
+    val currentValue: Int = if (done) 1 else 0,
+    val unit: String = "step",
+    val milestones: List<Milestone> = emptyList(),
+    val createdAt: String = "",
+    val completedAt: String? = null
+) {
+    val progressFraction: Float
+        get() {
+            if (done) return 1.0f
+            if (milestones.isNotEmpty()) {
+                val doneCount = milestones.count { it.done }
+                return (doneCount.toFloat() / milestones.size).coerceIn(0f, 1f)
+            }
+            if (targetValue > 1) {
+                return (currentValue.toFloat() / targetValue).coerceIn(0f, 1f)
+            }
+            return if (done) 1.0f else 0.0f
+        }
+
+    val progressPercent: Int
+        get() = (progressFraction * 100).toInt()
+
+    fun toJsonObject(): JSONObject = JSONObject().apply {
+        put("id", id)
+        put("title", title)
+        put("detail", detail)
+        put("done", done)
+        put("category", category)
+        put("targetValue", targetValue)
+        put("currentValue", currentValue)
+        put("unit", unit)
+        val mArr = JSONArray()
+        milestones.forEach { mArr.put(it.toJsonObject()) }
+        put("milestones", mArr)
+        put("createdAt", createdAt)
+        if (completedAt != null) put("completedAt", completedAt)
+    }
+
+    companion object {
+        fun fromJsonObject(json: JSONObject): Goal {
+            val milestoneList = mutableListOf<Milestone>()
+            json.optJSONArray("milestones")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    milestoneList.add(Milestone.fromJsonObject(arr.getJSONObject(i)))
+                }
+            }
+            val isDone = json.optBoolean("done", false)
+            val target = json.optInt("targetValue", 1)
+            val current = json.optInt("currentValue", if (isDone) target else 0)
+
+            return Goal(
+                id = json.optString("id", UUID.randomUUID().toString()),
+                title = json.optString("title", ""),
+                detail = json.optString("detail", ""),
+                done = isDone,
+                category = json.optString("category", "Habits & Routine"),
+                targetValue = target,
+                currentValue = current,
+                unit = json.optString("unit", "step"),
+                milestones = milestoneList,
+                createdAt = json.optString("createdAt", ""),
+                completedAt = if (json.has("completedAt")) json.optString("completedAt") else null
+            )
+        }
     }
 }
 
@@ -50,20 +121,40 @@ data class Task(
 data class Note(
     val id: String = UUID.randomUUID().toString(),
     val body: String,
-    val createdAt: String
+    val createdAt: String,
+    val prompt: String = "",
+    val mood: String = "",
+    val tags: List<String> = emptyList(),
+    val updatedAt: String? = null
 ) {
     fun toJsonObject(): JSONObject = JSONObject().apply {
         put("id", id)
         put("body", body)
         put("createdAt", createdAt)
+        put("prompt", prompt)
+        put("mood", mood)
+        put("tags", JSONArray(tags))
+        if (updatedAt != null) put("updatedAt", updatedAt)
     }
 
     companion object {
-        fun fromJsonObject(json: JSONObject): Note = Note(
-            id = json.optString("id", UUID.randomUUID().toString()),
-            body = json.optString("body", ""),
-            createdAt = json.optString("createdAt", "")
-        )
+        fun fromJsonObject(json: JSONObject): Note {
+            val tagList = mutableListOf<String>()
+            json.optJSONArray("tags")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    tagList.add(arr.getString(i))
+                }
+            }
+            return Note(
+                id = json.optString("id", UUID.randomUUID().toString()),
+                body = json.optString("body", ""),
+                createdAt = json.optString("createdAt", ""),
+                prompt = json.optString("prompt", ""),
+                mood = json.optString("mood", ""),
+                tags = tagList,
+                updatedAt = if (json.has("updatedAt")) json.optString("updatedAt") else null
+            )
+        }
     }
 }
 
@@ -288,6 +379,68 @@ data class Memory(
     }
 }
 
+data class SavedLink(
+    val id: String = UUID.randomUUID().toString(),
+    val url: String,
+    val title: String = "",
+    val notes: String = "",
+    val tags: List<String> = emptyList(),
+    val isFavorite: Boolean = false,
+    val isRead: Boolean = false,
+    val createdAt: String = "",
+    val updatedAt: String = ""
+) {
+    val displayTitle: String
+        get() = if (title.isNotBlank()) title else domain
+
+    val domain: String
+        get() {
+            return try {
+                val clean = url.trim().lowercase()
+                val withoutProtocol = if (clean.startsWith("http://")) clean.removePrefix("http://")
+                else if (clean.startsWith("https://")) clean.removePrefix("https://")
+                else clean
+                withoutProtocol.substringBefore("/").substringBefore("?").ifBlank { "Web Link" }
+            } catch (e: Exception) {
+                "Web Link"
+            }
+        }
+
+    fun toJsonObject(): JSONObject = JSONObject().apply {
+        put("id", id)
+        put("url", url)
+        put("title", title)
+        put("notes", notes)
+        val tagsArr = JSONArray()
+        tags.forEach { tagsArr.put(it) }
+        put("tags", tagsArr)
+        put("isFavorite", isFavorite)
+        put("isRead", isRead)
+        put("createdAt", createdAt)
+        put("updatedAt", updatedAt)
+    }
+
+    companion object {
+        fun fromJsonObject(json: JSONObject): SavedLink {
+            val tagList = mutableListOf<String>()
+            json.optJSONArray("tags")?.let { arr ->
+                for (i in 0 until arr.length()) tagList.add(arr.getString(i))
+            }
+            return SavedLink(
+                id = json.optString("id", UUID.randomUUID().toString()),
+                url = json.optString("url", ""),
+                title = json.optString("title", ""),
+                notes = json.optString("notes", ""),
+                tags = tagList,
+                isFavorite = json.optBoolean("isFavorite", false),
+                isRead = json.optBoolean("isRead", false),
+                createdAt = json.optString("createdAt", ""),
+                updatedAt = json.optString("updatedAt", "")
+            )
+        }
+    }
+}
+
 data class ArloState(
     val goals: List<Goal> = listOf(
         Goal(
@@ -305,6 +458,7 @@ data class ArloState(
         )
     ),
     val notes: List<Note> = emptyList(),
+    val savedLinks: List<SavedLink> = defaultLinks(),
     val permissions: Permissions = Permissions(),
     val lastCheckIn: String? = null,
     val lastMoodIndex: Int? = null,
@@ -325,6 +479,10 @@ data class ArloState(
         notes.forEach { notesArr.put(it.toJsonObject()) }
         put("notes", notesArr)
 
+        val linksArr = JSONArray()
+        savedLinks.forEach { linksArr.put(it.toJsonObject()) }
+        put("savedLinks", linksArr)
+
         put("permissions", permissions.toJsonObject())
         if (lastCheckIn != null) put("lastCheckIn", lastCheckIn)
         if (lastMoodIndex != null) put("lastMoodIndex", lastMoodIndex)
@@ -338,6 +496,29 @@ data class ArloState(
     }
 
     companion object {
+        fun defaultLinks(): List<SavedLink> = listOf(
+            SavedLink(
+                id = UUID.randomUUID().toString(),
+                url = "https://developer.android.com/design",
+                title = "Material Design 3 Guidelines",
+                notes = "Design tokens, color roles, and accessible density recommendations for clean interfaces.",
+                tags = listOf("Design", "Android", "Inspiration"),
+                isFavorite = true,
+                isRead = false,
+                createdAt = "2026-10-01T10:00:00Z"
+            ),
+            SavedLink(
+                id = UUID.randomUUID().toString(),
+                url = "https://hubermanlab.com/toolkit-for-sleep",
+                title = "Sleep & Morning Light Protocol",
+                notes = "Get sunlight in eyes within 30-60 min of waking. Key rhythm anchor for energy.",
+                tags = listOf("Health", "Rhythm", "Habits"),
+                isFavorite = false,
+                isRead = true,
+                createdAt = "2026-10-02T08:30:00Z"
+            )
+        )
+
         fun fromJsonObject(json: JSONObject): ArloState {
             val goals = mutableListOf<Goal>()
             json.optJSONArray("goals")?.let { arr ->
@@ -354,6 +535,11 @@ data class ArloState(
                 for (i in 0 until arr.length()) notes.add(Note.fromJsonObject(arr.getJSONObject(i)))
             }
 
+            val links = mutableListOf<SavedLink>()
+            json.optJSONArray("savedLinks")?.let { arr ->
+                for (i in 0 until arr.length()) links.add(SavedLink.fromJsonObject(arr.getJSONObject(i)))
+            }
+
             val audit = mutableListOf<AuditEntry>()
             json.optJSONArray("audit")?.let { arr ->
                 for (i in 0 until arr.length()) audit.add(AuditEntry.fromJsonObject(arr.getJSONObject(i)))
@@ -363,6 +549,7 @@ data class ArloState(
                 goals = if (goals.isEmpty()) defaultStarter().goals else goals,
                 tasks = tasks,
                 notes = notes,
+                savedLinks = if (links.isEmpty() && !json.has("savedLinks")) defaultLinks() else links,
                 permissions = Permissions.fromJsonObject(json.optJSONObject("permissions")),
                 lastCheckIn = if (json.has("lastCheckIn")) json.optString("lastCheckIn") else null,
                 lastMoodIndex = if (json.has("lastMoodIndex")) json.optInt("lastMoodIndex") else null,

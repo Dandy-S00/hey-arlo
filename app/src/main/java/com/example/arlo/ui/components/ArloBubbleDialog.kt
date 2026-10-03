@@ -82,7 +82,7 @@ fun ArloBubbleDialog(
     onAvatarChange: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val options = listOf("✦", "☼", "◈", "☁", "🌿", "⭐")
+    val options = listOf("🐱", "✦", "☼", "◈", "☁", "🌿")
     var customInput by remember { mutableStateOf("") }
 
     AlertDialog(

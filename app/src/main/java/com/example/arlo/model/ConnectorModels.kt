@@ -6,18 +6,118 @@ data class ApiProvider(
     val category: String,
     val logo: String,
     val auth: String,
-    val description: String
+    val description: String,
+    val supportsDirectImport: Boolean = false,
+    val importFormat: String = ""
 )
 
 data class ConnectionConsent(
     val providerId: String,
     val providerName: String,
     val status: String, // "awaiting-provider-auth" or "connected"
-    val requestedAt: String
+    val requestedAt: String,
+    val lastSyncAt: String? = null,
+    val itemsImportedCount: Int = 0,
+    val syncMode: String = "Read & Import"
 )
 
 object ProviderCatalog {
     val providers = listOf(
+        // Note-Taking Apps
+        ApiProvider(
+            id = "obsidian",
+            name = "Obsidian",
+            category = "Note-Taking",
+            logo = "💎",
+            auth = "Markdown & Local Vault",
+            description = "Import Markdown (.md) notes directly from your Obsidian vault or export reflections with YAML frontmatter without cloud exposure.",
+            supportsDirectImport = true,
+            importFormat = "Markdown (.md)"
+        ),
+        ApiProvider(
+            id = "notion",
+            name = "Notion",
+            category = "Note-Taking",
+            logo = "N",
+            auth = "OAuth 2.0 & Page Importer",
+            description = "Connect workspace databases and import reflections, tasks, or exported Notion archives.",
+            supportsDirectImport = true,
+            importFormat = "Notion Export / Markdown"
+        ),
+        ApiProvider(
+            id = "google-notebooklm",
+            name = "Google NotebookLM",
+            category = "Note-Taking",
+            logo = "📓",
+            auth = "Google Takeout / Text Import",
+            description = "Import synthesis notes, study guides, and research reflections exported from your NotebookLM notebooks.",
+            supportsDirectImport = true,
+            importFormat = "Markdown / Plain text"
+        ),
+        ApiProvider(
+            id = "google-keep",
+            name = "Google Keep",
+            category = "Note-Taking",
+            logo = "💡",
+            auth = "Google Takeout / JSON",
+            description = "Import quick thoughts, reflections, and pinned checklists from Google Keep archives.",
+            supportsDirectImport = true,
+            importFormat = "Google Takeout JSON / Text"
+        ),
+        ApiProvider(
+            id = "logseq",
+            name = "Logseq",
+            category = "Note-Taking",
+            logo = "🪵",
+            auth = "Markdown & Org-Mode",
+            description = "Connect local-first outliner journals and daily logs in Markdown or Org format.",
+            supportsDirectImport = true,
+            importFormat = "Markdown (.md)"
+        ),
+
+        // Cloud Storage Apps
+        ApiProvider(
+            id = "google-drive",
+            name = "Google Drive",
+            category = "Cloud Storage",
+            logo = "▲",
+            auth = "OAuth 2.0 & Cloud Picker",
+            description = "Find and import notes, journals, and backup archives stored in your Google Drive cloud.",
+            supportsDirectImport = true,
+            importFormat = "Google Docs / Drive files"
+        ),
+        ApiProvider(
+            id = "dropbox",
+            name = "Dropbox",
+            category = "Cloud Storage",
+            logo = "📦",
+            auth = "OAuth 2.0 / App Key",
+            description = "Connect Dropbox cloud storage to import documents, backups, and synchronize notes.",
+            supportsDirectImport = true,
+            importFormat = "Dropbox files / .md"
+        ),
+        ApiProvider(
+            id = "onedrive",
+            name = "Microsoft OneDrive",
+            category = "Cloud Storage",
+            logo = "☁",
+            auth = "Microsoft Graph OAuth 2.0",
+            description = "Connect to Microsoft personal or work cloud storage for notes, documents, and backups.",
+            supportsDirectImport = true,
+            importFormat = "OneDrive files / .txt"
+        ),
+        ApiProvider(
+            id = "nextcloud",
+            name = "Nextcloud / WebDAV",
+            category = "Cloud Storage",
+            logo = "🔒",
+            auth = "WebDAV / App Password",
+            description = "Connect to sovereign self-hosted cloud storage for private note vault synchronization.",
+            supportsDirectImport = true,
+            importFormat = "WebDAV / Markdown"
+        ),
+
+        // Productivity & Dev
         ApiProvider(
             id = "google-calendar",
             name = "Google Calendar",
@@ -27,20 +127,12 @@ object ProviderCatalog {
             description = "Read and create calendar events after approval."
         ),
         ApiProvider(
-            id = "google-drive",
-            name = "Google Drive",
-            category = "Files",
-            logo = "D",
+            id = "todoist",
+            name = "Todoist",
+            category = "Productivity",
+            logo = "T",
             auth = "OAuth 2.0",
-            description = "Find and organize files you choose."
-        ),
-        ApiProvider(
-            id = "notion",
-            name = "Notion",
-            category = "Notes",
-            logo = "N",
-            auth = "OAuth 2.0",
-            description = "Read and update selected pages and databases."
+            description = "Read and manage tasks after approval."
         ),
         ApiProvider(
             id = "slack",
@@ -56,23 +148,15 @@ object ProviderCatalog {
             category = "Development",
             logo = "GH",
             auth = "OAuth 2.0",
-            description = "Read repositories and create changes you approve."
+            description = "Read repositories, documentation, and create changes you approve."
         ),
         ApiProvider(
             id = "linear",
             name = "Linear",
-            category = "Planning",
+            category = "Productivity",
             logo = "L",
             auth = "OAuth 2.0",
             description = "Read and update selected issues and projects."
-        ),
-        ApiProvider(
-            id = "todoist",
-            name = "Todoist",
-            category = "Tasks",
-            logo = "T",
-            auth = "OAuth 2.0",
-            description = "Read and manage tasks after approval."
         ),
         ApiProvider(
             id = "weather",
@@ -84,11 +168,13 @@ object ProviderCatalog {
         ),
         ApiProvider(
             id = "custom-api",
-            name = "Any other API",
+            name = "Any other API / Storage",
             category = "Custom",
             logo = "+",
             auth = "OAuth, API key, or bearer token",
-            description = "Describe an API by name or add its connection details."
+            description = "Describe an API by name or add custom endpoint details.",
+            supportsDirectImport = true,
+            importFormat = "Custom JSON / Text"
         )
     )
 

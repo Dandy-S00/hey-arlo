@@ -1,59 +1,48 @@
-# Arlo
+# Arlo (Android)
 
-Arlo is a local-first companion for thoughtful progress: goals, tasks, reflections, private notes, and user-controlled permissions. What I call an AI Habit and Routine Assistant 
+Arlo is a local-first companion for thoughtful progress: goals, tasks, reflections, private notes, adaptive memory, and user-controlled permissions. Built for Android with Kotlin and Jetpack Compose.
 
-## Current phase
+## Core Features & Architecture
 
-The repository includes the Phase 3 encrypted-storage and consent-first AI foundations:
+- **Private Encrypted Local Vault**:
+  - Encrypted storage using AES-256-GCM.
+  - PBKDF2-SHA-256 key derivation with 600,000 iterations and random salt per vault.
+  - Zero cloud reliance for user data; nothing leaves the device without explicit user approval.
+  - Unlock and create vault screens with passphrase confirmation and strict 12+ character enforcement.
+  - Lock, passphrase change, encrypted JSON backup export, and full vault reset flows.
 
-- Web Crypto AES-256-GCM local vault.
-- Random salt and initialization vector per encrypted write.
-- Versioned encrypted envelope.
-- Memory-entry schema with source, confidence, status, and timestamps.
-- User-review workflow for personality proposals.
-- Source revocation support.
-- Explicit policy against silent screen, email, microphone, camera, or disk monitoring.
-- Automated vault regression tests, including negative security cases.
+- **Today (Intentional Progress & Check-in)**:
+  - Time-of-day personalized greeting with calendar date.
+  - Daily "✦ Check in" reflection dialog with 5 mood states (😵, 😕, 😐, 🙂, ✨) and positive prompts.
+  - Hero card: "Progress beats perfect" with quick focus intent.
+  - Today's task list with completed counter, quick add, toggle, and deletion.
+  - Real-time energy reflection card.
 
-## Run locally
+- **Goals (Direction)**:
+  - Meaningful goal management ("Keep the why nearby").
+  - Title and "Why does it matter?" context with done status toggling.
 
-```bash
-npm install
-npm test
-npm run dev
-```
+- **Journal (Private Notebook)**:
+  - Local encrypted private notes ("What is on your mind? Nothing leaves this device.").
+  - Formatted timestamps and note management.
 
-## Deploy quickly on a Hostinger VPS
+- **Memory & Adaptive Learning**:
+  - Low-friction, consent-first adaptation.
+  - Current communication preferences (Tone, Style, Feedback).
+  - 7-day adaptive trials workflow with explicit "Keep it" (approves and permanently saves) or "Undo".
+  - Structured memory entries with source labels, confidence levels, and revocation controls.
 
-The app is packaged as a static production container. It stores user data in the browser's encrypted local vault and does not require a database or server-side secrets.
+- **Control Room (Privacy & Permissions)**:
+  - Per-source toggle switches (Calendar, Location, Notifications, Files, Microphone, Camera, Accessibility, Cloud AI).
+  - One-tap "Pause all" emergency privacy switch.
+  - Vault management controls and security audit trail (last 50 security actions).
 
-### One-time VPS setup
+- **Floating Arlo Companion Bubble & API Connectors**:
+  - Interactive pulsing Arlo companion bubble with customizable avatars (✦, ☼, ◈, ☁, 🌿, ⭐).
+  - Permission Center catalog of 9 external API integrations (Google Calendar, Drive, Notion, Slack, GitHub, Linear, Todoist, Weather, Custom).
+  - Consent-first approval flow for external connectors.
 
-Install Docker Engine and the Docker Compose plugin on the VPS, then clone this repository:
+## Build & Test
 
-```bash
-git clone https://github.com/Dandy-S00/hey-arlo.git
-cd hey-arlo
-chmod +x deploy.sh
-./deploy.sh
-```
-
-The container listens on port `8080` by default. Set a different host port when needed:
-
-```bash
-ARLO_PORT=8090 ./deploy.sh
-```
-
-For a domain, point its DNS A record to the VPS and place the container behind the VPS's existing reverse proxy or HTTPS gateway. The container itself remains HTTP-only on the private host port; terminate TLS at the proxy.
-
-### Updating the deployment
-
-```bash
-./deploy.sh --pull
-```
-
-The script fast-forwards the checkout, rebuilds the image, replaces the container, and prints its health status. The Compose service uses automatic restart, a read-only filesystem, dropped Linux capabilities, and a non-privileged container profile.
-
-## Important security note
-
-Do not treat the app as production-secure until the unlock/migration experience has been integrated and tested end to end. AES-256-GCM protects the local vault, but a lost passphrase cannot be recovered by Arlo.
+- **Gradle Build**: `gradle assembleDebug` (compiles to debug APK)
+- **Unit Tests**: `gradle testDebugUnitTest`

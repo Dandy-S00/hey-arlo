@@ -1,0 +1,6 @@
+{
+  "name": "Arlo",
+  "description": "A local-first companion for thoughtful progress: goals, tasks, reflections, private notes, and user-controlled permissions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

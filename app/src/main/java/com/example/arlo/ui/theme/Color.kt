@@ -2,27 +2,29 @@ package com.example.arlo.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val ArloDarkBackground = Color(0xFF17131F)
-val ArloDarkSurface = Color(0xFF211A2A)
-val ArloDarkSurfaceVariant = Color(0xFF2B2236)
-val ArloBorder = Color(0xFF3B2E49)
-val ArloBorderHighlight = Color(0xFF765286)
+// Soothing dark surfaces with comfortable contrast
+val ArloDarkBackground = Color(0xFF14101A)
+val ArloDarkSurface = Color(0xFF1E1726)
+val ArloDarkSurfaceVariant = Color(0xFF282033)
+val ArloBorder = Color(0xFF3B3047)
+val ArloBorderHighlight = Color(0xFF6B557D)
 
-val ArloPrimary = Color(0xFFF6B8FF)
-val ArloOnPrimary = Color(0xFF4A105B)
-val ArloPrimaryContainer = Color(0xFF3D2250)
-val ArloOnPrimaryContainer = Color(0xFFFCDDFF)
+// Soft, soothing pastel accents (less bright, easy on the eyes)
+val ArloPrimary = Color(0xFFD8B4E2)
+val ArloOnPrimary = Color(0xFF1E0E2E) // Bold, high-contrast dark text on pastel buttons
+val ArloPrimaryContainer = Color(0xFF382548)
+val ArloOnPrimaryContainer = Color(0xFFF0DEFA)
 
-val ArloSecondary = Color(0xFFD4BBEE)
-val ArloOnSecondary = Color(0xFF3B2556)
-val ArloSecondaryContainer = Color(0xFF30233D)
-val ArloOnSecondaryContainer = Color(0xFFEADBFA)
+val ArloSecondary = Color(0xFFBACAE6)
+val ArloOnSecondary = Color(0xFF141F32)
+val ArloSecondaryContainer = Color(0xFF253042)
+val ArloOnSecondaryContainer = Color(0xFFD9E5F9)
 
-val ArloTextPrimary = Color(0xFFF2EAF8)
-val ArloTextSecondary = Color(0xFFCFC1D8)
-val ArloTextMuted = Color(0xFFA9A0B5)
+val ArloTextPrimary = Color(0xFFF3EEF8)
+val ArloTextSecondary = Color(0xFFC8BDD4)
+val ArloTextMuted = Color(0xFFA096AC)
 
-val ArloWarmGold = Color(0xFFFFD54F)
-val ArloSuccess = Color(0xFF81C784)
-val ArloDanger = Color(0xFFFF8A80)
-val ArloDangerContainer = Color(0xFF4B1822)
+val ArloWarmGold = Color(0xFFE8C896)
+val ArloSuccess = Color(0xFF98D4A3)
+val ArloDanger = Color(0xFFF09898)
+val ArloDangerContainer = Color(0xFF4A1E26)

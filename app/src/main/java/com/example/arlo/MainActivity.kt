@@ -1,30 +1,31 @@
 package com.example.arlo
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.arlo.data.ArloRepository
+import com.example.arlo.security.BiometricAuthManager
 import com.example.arlo.ui.screens.MainScaffold
 import com.example.arlo.ui.screens.VaultScreen
 import com.example.arlo.ui.theme.ArloDarkBackground
 import com.example.arlo.ui.theme.ArloTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private lateinit var repository: ArloRepository
+    private lateinit var biometricManager: BiometricAuthManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         repository = ArloRepository(applicationContext)
+        biometricManager = BiometricAuthManager(applicationContext)
 
         setContent {
             ArloTheme {
@@ -41,13 +42,33 @@ class MainActivity : ComponentActivity() {
                         VaultScreen(
                             hasExistingVault = hasVault,
                             hasLegacyData = hasLegacyData,
-                            onUnlock = { passphrase ->
-                                repository.unlock(passphrase)
+                            isBiometricAvailable = biometricManager.isBiometricAvailable(),
+                            isBiometricEnabled = biometricManager.isBiometricEnabled(),
+                            onTriggerBiometric = {
+                                biometricManager.authenticate(
+                                    activity = this@MainActivity,
+                                    onSuccess = { storedPassphrase ->
+                                        repository.unlock(storedPassphrase)
+                                    },
+                                    onError = { /* handled in UI */ }
+                                )
                             },
-                            onCreate = { passphrase, migrateLegacy ->
-                                repository.createVault(passphrase, migrateLegacy)
+                            onUnlock = { passphrase, enableBiometrics ->
+                                val res = repository.unlock(passphrase)
+                                if (res.isSuccess && enableBiometrics) {
+                                    biometricManager.enableBiometrics(passphrase)
+                                }
+                                res
+                            },
+                            onCreate = { passphrase, migrateLegacy, enableBiometrics ->
+                                val res = repository.createVault(passphrase, migrateLegacy)
+                                if (res.isSuccess && enableBiometrics) {
+                                    biometricManager.enableBiometrics(passphrase)
+                                }
+                                res
                             },
                             onResetVault = {
+                                biometricManager.disableBiometrics()
                                 repository.deleteVault()
                             }
                         )
@@ -59,6 +80,7 @@ class MainActivity : ComponentActivity() {
                                 repository.lock()
                             },
                             onResetVault = {
+                                biometricManager.disableBiometrics()
                                 repository.deleteVault()
                             }
                         )

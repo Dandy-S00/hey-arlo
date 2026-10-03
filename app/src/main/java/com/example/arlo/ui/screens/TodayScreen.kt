@@ -29,10 +29,12 @@ import com.example.arlo.data.AmbientAtmosphere
 import com.example.arlo.data.AmbientWeatherManager
 import com.example.arlo.data.ArloPatternAnalyzer
 import com.example.arlo.data.GeminiManager
+import com.example.arlo.data.NaturalRhythmManager
 import com.example.arlo.model.ArloState
 import com.example.arlo.model.Goal
 import com.example.arlo.ui.components.ArloDialogueBox
 import com.example.arlo.ui.components.DailyCheckInPromptDialog
+import com.example.arlo.ui.components.PeakProductivityDashboard
 import com.example.arlo.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -51,11 +53,16 @@ fun TodayScreen(
     onOpenGeminiSettings: () -> Unit = {},
     onOpenWeatherSettings: () -> Unit = {},
     onOpenConnectedApps: () -> Unit = {},
+    onOpenRhythmDetails: () -> Unit = {},
     onOpenConnectors: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var newTaskTitle by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     var showCheckInDialog by remember { mutableStateOf(false) }
+
+    val rhythmManager = remember { NaturalRhythmManager(context) }
+    val rhythmProfile by rhythmManager.rhythmProfileFlow.collectAsState()
 
     val breakdown = remember(state) { ArloPatternAnalyzer.analyze(state) }
     val atmosphere by ambientWeatherManager.atmosphereFlow.collectAsState()
@@ -152,6 +159,19 @@ fun TodayScreen(
             onOpenGeminiSettings = onOpenGeminiSettings,
             onOpenWeatherSettings = onOpenWeatherSettings,
             onOpenConnectedApps = onOpenConnectedApps
+        )
+    }
+
+    val peakDashboardBlock = @Composable {
+        PeakProductivityDashboard(
+            state = state,
+            rhythmProfile = rhythmProfile,
+            onToggleTask = onToggleTask,
+            onAddTask = onAddTask,
+            onQuickLogReflection = { mood, note ->
+                onCheckIn(3, note, mood)
+            },
+            onOpenRhythmDetails = onOpenRhythmDetails
         )
     }
 
@@ -456,7 +476,7 @@ fun TodayScreen(
                     .padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                // Left Column: Greeting, Dialogue & Mood
+                // Left Column: Greeting, Dynamic Peak Dashboard & Dialogue
                 LazyColumn(
                     modifier = Modifier
                         .weight(1.05f)
@@ -465,11 +485,11 @@ fun TodayScreen(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 48.dp)
                 ) {
                     item { headerBlock() }
+                    item { peakDashboardBlock() }
                     item { dialogueBlock() }
-                    item { reflectionBlock() }
                 }
 
-                // Right Column: Hero Nudge & Focus Tasks
+                // Right Column: Hero Nudge, Focus Tasks & Mood
                 LazyColumn(
                     modifier = Modifier
                         .weight(0.95f)
@@ -479,6 +499,7 @@ fun TodayScreen(
                 ) {
                     item { heroCardBlock() }
                     item { tasksBlock() }
+                    item { reflectionBlock() }
                 }
             }
         } else {
@@ -491,6 +512,7 @@ fun TodayScreen(
                 contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
             ) {
                 item { headerBlock() }
+                item { peakDashboardBlock() }
                 item { dialogueBlock() }
                 item { heroCardBlock() }
                 item { tasksBlock() }

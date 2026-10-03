@@ -20,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -276,17 +277,27 @@ fun PrivacyScreen(
                         onClick = onLockArlo,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(48.dp)
                             .testTag("lock_arlo_button"),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = ArloSecondaryContainer,
-                            contentColor = ArloDanger
+                            containerColor = ArloDanger,
+                            contentColor = Color(0xFF38080E)
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ArloDanger.copy(alpha = 0.5f))
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFF38080E),
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Lock Arlo", fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Lock Arlo Vault",
+                            color = Color(0xFF38080E),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

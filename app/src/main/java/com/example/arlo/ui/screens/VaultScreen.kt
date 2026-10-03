@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -31,8 +32,11 @@ import com.example.arlo.ui.theme.*
 fun VaultScreen(
     hasExistingVault: Boolean,
     hasLegacyData: Boolean,
-    onUnlock: (String) -> Result<Unit>,
-    onCreate: (String, Boolean) -> Result<Unit>,
+    isBiometricAvailable: Boolean = false,
+    isBiometricEnabled: Boolean = false,
+    onTriggerBiometric: () -> Unit = {},
+    onUnlock: (passphrase: String, enableBiometrics: Boolean) -> Result<Unit>,
+    onCreate: (passphrase: String, migrateLegacy: Boolean, enableBiometrics: Boolean) -> Result<Unit>,
     onResetVault: () -> Unit
 ) {
     var mode by remember(hasExistingVault) {
@@ -41,9 +45,17 @@ fun VaultScreen(
     var passphrase by remember { mutableStateOf("") }
     var confirmPassphrase by remember { mutableStateOf("") }
     var migrateLegacy by remember { mutableStateOf(hasLegacyData) }
+    var enableBiometrics by remember { mutableStateOf(isBiometricAvailable) }
     var showPassword by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showResetConfirm by remember { mutableStateOf(false) }
+
+    // Auto-trigger biometric on launch if enabled
+    LaunchedEffect(isBiometricEnabled, mode) {
+        if (isBiometricEnabled && mode == "unlock") {
+            onTriggerBiometric()
+        }
+    }
 
     fun submit() {
         errorMessage = null
@@ -52,7 +64,7 @@ fun VaultScreen(
                 errorMessage = "Please enter your passphrase."
                 return
             }
-            val result = onUnlock(passphrase)
+            val result = onUnlock(passphrase, enableBiometrics)
             result.onFailure {
                 errorMessage = it.message ?: "Unable to open the vault. Check the passphrase and try again."
             }
@@ -65,7 +77,7 @@ fun VaultScreen(
                 errorMessage = "The passphrases do not match."
                 return
             }
-            val result = onCreate(passphrase, migrateLegacy)
+            val result = onCreate(passphrase, migrateLegacy, enableBiometrics)
             result.onFailure {
                 errorMessage = it.message ?: "Failed to create vault."
             }
@@ -110,14 +122,15 @@ fun VaultScreen(
                             text = "✦",
                             color = ArloPrimary,
                             fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "Arlo",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = ArloTextPrimary
+                        color = ArloTextPrimary,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
@@ -127,44 +140,94 @@ fun VaultScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
                     Text(
-                        text = "PRIVATE LOCAL VAULT",
+                        text = "PRIVATE LOCAL VAULT • ROOM DB",
                         style = MaterialTheme.typography.labelSmall,
                         color = ArloPrimary,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }
 
                 Text(
                     text = if (mode == "unlock") "Unlock Arlo" else "Protect your Arlo data",
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.headlineMedium,
                     color = ArloTextPrimary,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    fontWeight = FontWeight.Bold
                 )
+
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = if (mode == "unlock")
-                        "Your data is encrypted on this device. Enter your passphrase to continue."
+                        "Enter your passphrase or use biometric unlock to open your encrypted local vault."
                     else
-                        "Create a passphrase to encrypt your local data. Arlo cannot recover it if you lose it.",
-                    style = MaterialTheme.typography.bodyLarge,
+                        "Your data stays encrypted with AES-256 on this device. Create a strong passphrase.",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = ArloTextSecondary,
-                    modifier = Modifier.padding(bottom = 20.dp)
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
                 )
 
-                // Error Notice
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Biometric Unlock Button (If in unlock mode and biometrics supported)
+                if (mode == "unlock" && isBiometricAvailable) {
+                    Button(
+                        onClick = onTriggerBiometric,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("biometric_unlock_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ArloSecondary,
+                            contentColor = ArloOnSecondary
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fingerprint,
+                            contentDescription = "Biometric Unlock",
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Unlock with Fingerprint / Face",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = ArloBorder)
+                        Text(
+                            text = "  or enter passphrase  ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ArloTextMuted,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = ArloBorder)
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
                 if (errorMessage != null) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = ArloDangerContainer,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 16.dp)
-                            .border(1.dp, ArloDanger, RoundedCornerShape(12.dp))
+                            .padding(bottom = 14.dp)
                     ) {
                         Text(
-                            text = errorMessage!!,
+                            text = errorMessage ?: "",
                             color = ArloDanger,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(12.dp)
                         )
                     }
@@ -174,13 +237,22 @@ fun VaultScreen(
                 OutlinedTextField(
                     value = passphrase,
                     onValueChange = { passphrase = it },
-                    label = { Text("Passphrase (min 12 characters)") },
-                    placeholder = { Text("At least 12 characters") },
+                    label = { Text("Vault passphrase", fontWeight = FontWeight.SemiBold) },
+                    placeholder = { Text(if (mode == "unlock") "Enter passphrase" else "Min 12 characters") },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("vault_passphrase_input"),
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle visibility",
+                                tint = ArloTextMuted
+                            )
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
                         imeAction = if (mode == "unlock") ImeAction.Done else ImeAction.Next
@@ -188,15 +260,6 @@ fun VaultScreen(
                     keyboardActions = KeyboardActions(
                         onDone = { if (mode == "unlock") submit() }
                     ),
-                    trailingIcon = {
-                        IconButton(onClick = { showPassword = !showPassword }) {
-                            Icon(
-                                imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (showPassword) "Hide password" else "Show password",
-                                tint = ArloTextMuted
-                            )
-                        }
-                    },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = ArloPrimary,
                         unfocusedBorderColor = ArloBorder,
@@ -214,7 +277,7 @@ fun VaultScreen(
                     OutlinedTextField(
                         value = confirmPassphrase,
                         onValueChange = { confirmPassphrase = it },
-                        label = { Text("Confirm passphrase") },
+                        label = { Text("Confirm passphrase", fontWeight = FontWeight.SemiBold) },
                         placeholder = { Text("Re-enter passphrase") },
                         singleLine = true,
                         modifier = Modifier
@@ -238,21 +301,43 @@ fun VaultScreen(
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (isBiometricAvailable) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp)
+                        ) {
+                            Checkbox(
+                                checked = enableBiometrics,
+                                onCheckedChange = { enableBiometrics = it },
+                                colors = CheckboxDefaults.colors(checkedColor = ArloPrimary)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Enable 1-tap Biometric Unlock",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ArloTextPrimary
+                            )
+                        }
+                    }
 
                     if (hasLegacyData) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                                .padding(vertical = 2.dp)
                         ) {
                             Checkbox(
                                 checked = migrateLegacy,
                                 onCheckedChange = { migrateLegacy = it },
                                 colors = CheckboxDefaults.colors(checkedColor = ArloPrimary)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Import my existing local prototype data",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -260,15 +345,36 @@ fun VaultScreen(
                             )
                         }
                     }
+                } else if (isBiometricAvailable && !isBiometricEnabled) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                    ) {
+                        Checkbox(
+                            checked = enableBiometrics,
+                            onCheckedChange = { enableBiometrics = it },
+                            colors = CheckboxDefaults.colors(checkedColor = ArloPrimary)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Save for Biometric Unlock (Fingerprint / Face)",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ArloTextPrimary
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Primary Submit Button (Pastel background + Heavy bold high-contrast text)
                 Button(
                     onClick = { submit() },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(52.dp)
                         .testTag("vault_submit_button"),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = ArloPrimary,
@@ -279,17 +385,45 @@ fun VaultScreen(
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        tint = ArloOnPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (mode == "unlock") "Unlock securely" else "Create encrypted vault",
-                        fontWeight = FontWeight.Bold,
+                        color = ArloOnPrimary,
+                        fontWeight = FontWeight.Black,
                         fontSize = 16.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                if (mode == "create") {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val generatedPassphrase = "arlo-vault-" + java.util.UUID.randomUUID().toString().take(16)
+                            val result = onCreate(generatedPassphrase, migrateLegacy, enableBiometrics)
+                            result.onFailure {
+                                errorMessage = it.message ?: "Failed to generate quick start vault."
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .testTag("vault_quick_start_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.2.dp, ArloPrimary.copy(alpha = 0.8f))
+                    ) {
+                        Text(
+                            text = "✦ 1-Tap Quick Start (Instant Setup)",
+                            color = ArloPrimary,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Mode toggle or Reset option
                 if (hasExistingVault) {
@@ -298,22 +432,23 @@ fun VaultScreen(
                             onClick = { showResetConfirm = true },
                             modifier = Modifier.testTag("vault_reset_button")
                         ) {
-                            Text("Reset vault / start fresh", color = ArloDanger)
+                            Text("Reset vault / start fresh", color = ArloDanger, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         TextButton(onClick = { mode = "unlock" }) {
-                            Text("Back to unlock", color = ArloPrimary)
+                            Text("Back to unlock", color = ArloPrimary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Arlo uses AES-256-GCM locally. Keep this passphrase safe; it is never sent to a server.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Room SQLite & AES-256-GCM local storage. Zero data sent to any server.",
+                    style = MaterialTheme.typography.bodySmall,
                     color = ArloTextMuted,
-                    fontSize = 12.sp
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal
                 )
             }
         }
@@ -322,10 +457,10 @@ fun VaultScreen(
     if (showResetConfirm) {
         AlertDialog(
             onDismissRequest = { showResetConfirm = false },
-            title = { Text("Reset Encrypted Vault?") },
+            title = { Text("Reset Encrypted Vault?", fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "This will delete your local encrypted vault permanently. Any stored goals, tasks, reflections, and notes will be cleared.",
+                    "This will delete your local encrypted Room database permanently. Any stored goals, tasks, reflections, and notes will be cleared.",
                     color = ArloTextSecondary
                 )
             },
@@ -338,12 +473,12 @@ fun VaultScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ArloDanger)
                 ) {
-                    Text("Delete and Start Fresh")
+                    Text("Delete and Start Fresh", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirm = false }) {
-                    Text("Cancel", color = ArloTextSecondary)
+                    Text("Cancel", color = ArloTextSecondary, fontWeight = FontWeight.Bold)
                 }
             },
             containerColor = ArloDarkSurface

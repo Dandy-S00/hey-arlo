@@ -2,14 +2,14 @@ package com.example.arlo.ui.screens
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cable
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,43 +19,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.arlo.R
-import com.example.arlo.data.AmbientWeatherManager
-import com.example.arlo.data.ArloRepository
-import com.example.arlo.data.CadenceReminderManager
-import com.example.arlo.data.ConnectedAppsManager
-import com.example.arlo.data.FloatingBubblePreferenceManager
-import com.example.arlo.data.GeminiManager
-import com.example.arlo.data.GoalStateManager
-import com.example.arlo.data.JournalStateManager
-import com.example.arlo.data.NaturalRhythmManager
-import com.example.arlo.data.ResourceIntelligenceManager
+import com.example.arlo.data.*
 import com.example.arlo.model.ArloState
-import com.example.arlo.ui.components.AmbientWeatherDialog
-import com.example.arlo.ui.components.ArloBubbleButton
-import com.example.arlo.ui.components.ArloBubbleDialog
-import com.example.arlo.ui.components.CatWorkingDialog
-import com.example.arlo.ui.components.CatchUpCheckpointDialog
-import com.example.arlo.ui.components.ConnectedAppsDialog
-import com.example.arlo.ui.components.ConnectorsDialog
-import com.example.arlo.ui.components.DailyCheckInPromptDialog
-import com.example.arlo.ui.components.FloatingBubbleSettingsDialog
-import com.example.arlo.ui.components.GeminiSettingsDialog
-import com.example.arlo.ui.components.NaturalRhythmDialog
+import com.example.arlo.ui.components.*
 import com.example.arlo.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class ArloTab(val label: String, val icon: String) {
-    TODAY("Today", "☀"),
-    GOALS("Moving Toward", "🎯"),
-    RESOURCES("Resources", "💡"),
-    JOURNAL("Journal", "✎"),
-    LINKS("Links", "🔖"),
-    PRIVACY("Privacy", "⌁")
+enum class MainSection(val label: String, val icon: String, val testTag: String) {
+    COMPANION("Talk with Arlo", "🐾", "nav_section_companion"),
+    LIFE_VAULT("Life Vault & Data", "🗄️", "nav_section_vault")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +41,7 @@ fun MainScaffold(
     onLockArlo: () -> Unit,
     onResetVault: () -> Unit
 ) {
-    var activeTab by remember { mutableStateOf(ArloTab.TODAY) }
+    var activeSection by remember { mutableStateOf(MainSection.COMPANION) }
     var showArloBubbleDialog by remember { mutableStateOf(false) }
     var showConnectorsDialog by remember { mutableStateOf(false) }
     var showGeminiSettingsDialog by remember { mutableStateOf(false) }
@@ -83,12 +58,28 @@ fun MainScaffold(
     val rhythmManager = remember { NaturalRhythmManager(context) }
     val cadenceManager = remember { CadenceReminderManager(context, rhythmManager) }
     val resourceManager = remember { ResourceIntelligenceManager(context) }
+    val smsAndEmailManager = remember { SmsAndEmailManager(context) }
+    val catNotificationManager = remember { com.example.arlo.notification.CatNotificationManager(context) }
 
     var showAmbientWeatherDialog by remember { mutableStateOf(false) }
     var showConnectedAppsDialog by remember { mutableStateOf(false) }
     var showFloatingBubbleSettingsDialog by remember { mutableStateOf(false) }
     var showCatchUpDialog by remember { mutableStateOf(false) }
     var showNaturalRhythmDialog by remember { mutableStateOf(false) }
+    var showLiveVoiceDialog by remember { mutableStateOf(false) }
+    var showAudioTranscriptionDialog by remember { mutableStateOf(false) }
+    var showCloudSyncDialog by remember { mutableStateOf(false) }
+    var showGlobalSearchDialog by remember { mutableStateOf(false) }
+    var showSmsAndEmailReaderDialog by remember { mutableStateOf(false) }
+    var showAudioAndCallRecorderDialog by remember { mutableStateOf(false) }
+    var showVideoToTextDialog by remember { mutableStateOf(false) }
+    var showCatReminderSchedulerDialog by remember { mutableStateOf(false) }
+
+    val roomTasks by repository.roomTasks.collectAsState(initial = emptyList())
+    val roomGoals by repository.roomGoals.collectAsState(initial = emptyList())
+    val roomReflections by repository.roomReflections.collectAsState(initial = emptyList())
+    val smsMessages by smsAndEmailManager.smsListFlow.collectAsState()
+    val emails by smsAndEmailManager.emailListFlow.collectAsState()
 
     val atmosphere by ambientWeatherManager.atmosphereFlow.collectAsState()
     val isFloatingBubbleActive by floatingBubbleManager.isBubbleEnabled.collectAsState()
@@ -101,20 +92,17 @@ fun MainScaffold(
         }
     }
 
-    val goalStateManager = remember(repository) { GoalStateManager(repository) }
-    val journalStateManager = remember(repository) { JournalStateManager(repository) }
-
     val coroutineScope = rememberCoroutineScope()
     var isCatWorking by remember { mutableStateOf(false) }
     var isCatDone by remember { mutableStateOf(false) }
-    var catActionTitle by remember { mutableStateOf("Arlo Cat is auditing your vault...") }
+    var catActionTitle by remember { mutableStateOf("Arlo is synchronizing vault data...") }
     var catDoneSaying by remember { mutableStateOf<String?>(null) }
 
     val connections by repository.connections.collectAsState()
 
-    // Handle back button to return to Today tab
-    BackHandler(enabled = activeTab != ArloTab.TODAY) {
-        activeTab = ArloTab.TODAY
+    // Handle back button to return to Companion section
+    BackHandler(enabled = activeSection != MainSection.COMPANION) {
+        activeSection = MainSection.COMPANION
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -124,185 +112,70 @@ fun MainScaffold(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(ArloPrimaryContainer)
-                                    .clickable {
-                                        catActionTitle = "Auditing Vault & Running Diagnostics..."
-                                        catDoneSaying = "Purr-fect! Everything is encrypted, healthy, and cozy."
-                                        isCatWorking = true
-                                        isCatDone = false
-                                        coroutineScope.launch {
-                                            delay(2400)
-                                            repository.audit("cat routine check performed")
-                                            isCatWorking = false
-                                            isCatDone = true
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_cat_outline),
-                                    contentDescription = "Arlo Cat Logo",
-                                    tint = ArloPrimary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.testTag("app_top_bar_title")
+                        ) {
                             Text(
                                 text = "Arlo",
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
                                 color = ArloTextPrimary
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = ArloDarkSurfaceVariant
+                                shape = RoundedCornerShape(8.dp),
+                                color = ArloPrimaryContainer,
+                                modifier = Modifier.clickable { showAmbientWeatherDialog = true }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .background(ArloSuccess, CircleShape)
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(atmosphere.weather.icon, fontSize = 11.sp)
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "Local vault",
-                                        fontSize = 11.sp,
-                                        color = ArloTextSecondary
+                                        text = atmosphere.weather.title,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = ArloPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
                                     )
                                 }
                             }
                         }
                     },
                     actions = {
-                        // Weather & Time Badge Chip
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = ArloDarkSurfaceVariant,
-                            modifier = Modifier
-                                .clickable { showAmbientWeatherDialog = true }
-                                .padding(end = 4.dp)
-                                .testTag("weather_top_action")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("${atmosphere.timeOfDay.icon} ${atmosphere.weather.icon}", fontSize = 12.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "${atmosphere.temperatureF}°",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = atmosphere.timeOfDay.themeAccent,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-
-                        val geminiConfig by geminiManager.configFlow.collectAsState()
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = ArloPrimaryContainer,
-                            modifier = Modifier
-                                .clickable { showGeminiSettingsDialog = true }
-                                .padding(end = 4.dp)
-                                .testTag("gemini_settings_top_action")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(geminiConfig.activeTier.badgeIcon, fontSize = 13.sp)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Gemini",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ArloPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-
-                        // Natural Rhythm & Heartbeat Chip Action
-                        val rhythmProfile by rhythmManager.rhythmProfileFlow.collectAsState()
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = ArloDarkSurfaceVariant,
-                            modifier = Modifier
-                                .clickable { showNaturalRhythmDialog = true }
-                                .padding(end = 4.dp)
-                                .testTag("natural_rhythm_top_action")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(rhythmProfile.chronotype.icon, fontSize = 12.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "${rhythmProfile.adaptiveHeartbeatHours}h",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ArloPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-
-                        // 32-Hour Catch-Up Checkpoint Action
+                        // Global Search Button
                         IconButton(
-                            onClick = { showCatchUpDialog = true },
-                            modifier = Modifier.testTag("catchup_checkpoint_top_action")
+                            onClick = { showGlobalSearchDialog = true },
+                            modifier = Modifier.testTag("open_global_search_button")
                         ) {
-                            BadgedBox(
-                                badge = {
-                                    if (isCheckpointDue) {
-                                        Badge(containerColor = ArloWarmGold) {
-                                            Text("!", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                                        }
-                                    }
-                                }
-                            ) {
-                                Text("⏱️", fontSize = 16.sp)
-                            }
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = ArloPrimary)
                         }
 
-                        // Gamification status badge if enabled
-                        if (gamification.isEnabled) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = ArloPrimaryContainer,
-                                modifier = Modifier
-                                    .clickable { showCatchUpDialog = true }
-                                    .padding(end = 4.dp)
-                                    .testTag("gamification_status_top_badge")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("🎮 Lvl ${gamification.level}", style = MaterialTheme.typography.labelSmall, color = ArloPrimary, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("🐟${gamification.tunaTreats}", style = MaterialTheme.typography.labelSmall, color = ArloWarmGold, fontSize = 10.sp)
-                                }
-                            }
-                        }
-
-                        // Floating Bubble / Chat Head Action
+                        // Cat Reminders & Purr Notifications
                         IconButton(
-                            onClick = { showFloatingBubbleSettingsDialog = true },
-                            modifier = Modifier.testTag("floating_bubble_top_action")
+                            onClick = { showCatReminderSchedulerDialog = true },
+                            modifier = Modifier.testTag("cat_reminders_top_action")
                         ) {
-                            Text(if (isFloatingBubbleActive) "💬" else "💭", fontSize = 16.sp)
+                            Text("🔔", fontSize = 16.sp)
+                        }
+
+                        // Record Live Audio / Call Action
+                        IconButton(
+                            onClick = { showAudioAndCallRecorderDialog = true },
+                            modifier = Modifier.testTag("record_audio_call_top_action")
+                        ) {
+                            Text("🎙️", fontSize = 16.sp)
+                        }
+
+                        // Video Link to Text Action
+                        IconButton(
+                            onClick = { showVideoToTextDialog = true },
+                            modifier = Modifier.testTag("video_to_text_top_action")
+                        ) {
+                            Text("📹", fontSize = 16.sp)
                         }
 
                         // Connected Apps Hub Action
@@ -313,45 +186,32 @@ fun MainScaffold(
                             Text("🔗", fontSize = 16.sp)
                         }
 
-                        IconButton(
-                            onClick = {
-                                catActionTitle = "Baking Biscuits & Organizing Data..."
-                                catDoneSaying = "Meow-gical! All tasks and thoughts are neatly organized."
-                                isCatWorking = true
-                                isCatDone = false
-                                coroutineScope.launch {
-                                    delay(2200)
-                                    isCatWorking = false
-                                    isCatDone = true
-                                }
-                            },
-                            modifier = Modifier.testTag("cat_work_summon_button")
-                        ) {
-                            Text("🐾", fontSize = 18.sp)
-                        }
+                        // Connectors & All-Integrations Sync
                         IconButton(
                             onClick = { showConnectorsDialog = true },
                             modifier = Modifier.testTag("open_connectors_top_action")
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Cable,
-                                contentDescription = "Connect APIs",
-                                tint = ArloPrimary
-                            )
+                            Icon(Icons.Default.Sync, contentDescription = "Sync Integrations", tint = ArloWarmGold)
                         }
+
+                        // Gemini Model Settings
+                        IconButton(
+                            onClick = { showGeminiSettingsDialog = true },
+                            modifier = Modifier.testTag("gemini_settings_top_action")
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = "Settings", tint = ArloTextSecondary)
+                        }
+
+                        // Emergency Passphrase Lock
                         IconButton(
                             onClick = onLockArlo,
-                            modifier = Modifier.testTag("lock_top_action")
+                            modifier = Modifier.testTag("lock_arlo_top_action")
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Lock Arlo",
-                                tint = ArloTextMuted
-                            )
+                            Icon(Icons.Default.Lock, contentDescription = "Lock Vault", tint = ArloTextMuted)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = ArloDarkBackground,
+                        containerColor = ArloDarkSurface,
                         titleContentColor = ArloTextPrimary
                     )
                 )
@@ -363,40 +223,32 @@ fun MainScaffold(
                         tonalElevation = 8.dp,
                         modifier = Modifier.testTag("main_bottom_nav")
                     ) {
-                        ArloTab.entries.forEach { tab ->
-                            val isSelected = activeTab == tab
+                        MainSection.values().forEach { section ->
+                            val isSelected = activeSection == section
                             NavigationBarItem(
                                 selected = isSelected,
-                                onClick = { activeTab = tab },
-                                icon = {
-                                    val iconText = if (tab == ArloTab.TODAY) {
-                                        atmosphere.todayModuleIcon
-                                    } else {
-                                        tab.icon
-                                    }
-                                    Text(
-                                        text = iconText,
-                                        fontSize = if (isSelected) 20.sp else 17.sp,
-                                        color = if (isSelected) ArloPrimary else ArloTextMuted,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
+                                onClick = { activeSection = section },
                                 label = {
                                     Text(
-                                        text = tab.label,
-                                        fontSize = 12.sp,
-                                        color = if (isSelected) ArloPrimary else ArloTextMuted,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                                        text = section.label,
+                                        fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    )
+                                },
+                                icon = {
+                                    Text(
+                                        text = section.icon,
+                                        fontSize = if (isSelected) 24.sp else 20.sp
                                     )
                                 },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = ArloPrimary,
-                                    unselectedIconColor = ArloTextMuted,
                                     selectedTextColor = ArloPrimary,
+                                    unselectedIconColor = ArloTextMuted,
                                     unselectedTextColor = ArloTextMuted,
                                     indicatorColor = ArloPrimaryContainer
                                 ),
-                                modifier = Modifier.testTag("tab_${tab.name.lowercase()}")
+                                modifier = Modifier.testTag(section.testTag)
                             )
                         }
                     }
@@ -406,141 +258,32 @@ fun MainScaffold(
         ) { paddingValues ->
             val screenContent: @Composable (Modifier) -> Unit = { innerModifier ->
                 Box(modifier = innerModifier) {
-                    when (activeTab) {
-                        ArloTab.TODAY -> TodayScreen(
-                            state = state,
-                            geminiManager = geminiManager,
-                            onAddTask = {
-                                repository.addTask(it)
-                                val msg = cadenceManager.awardProgress(15, 1)
-                                if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            },
-                            onToggleTask = {
-                                repository.toggleTask(it)
-                                val msg = cadenceManager.awardProgress(25, 1)
-                                if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            },
-                            onDeleteTask = { repository.deleteTask(it) },
-                            onCheckIn = { moodIndex, reflectionText, energyLabel ->
-                                repository.checkIn(moodIndex)
-                                if (reflectionText.isNotBlank()) {
-                                    repository.addNote(
-                                        body = reflectionText,
-                                        mood = energyLabel,
-                                        prompt = "Daily Check-in: $energyLabel energy"
-                                    )
-                                }
-                                val msg = cadenceManager.awardProgress(30, 2)
-                                if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                catActionTitle = "Calibrating Daily Rhythm & Patterns..."
-                                catDoneSaying = "Purr-fect! Check-in recorded and pattern analysis updated."
-                                isCatWorking = true
-                                isCatDone = false
-                                coroutineScope.launch {
-                                    delay(1200)
-                                    isCatWorking = false
-                                    isCatDone = true
-                                }
-                            },
-                            onAdvanceGoal = { goal ->
-                                catActionTitle = "Advancing Progress..."
-                                catDoneSaying = "Purr-fect! Step progress incremented."
-                                isCatWorking = true
-                                isCatDone = false
-                                coroutineScope.launch {
-                                    delay(1400)
-                                    goalStateManager.incrementProgress(goal.id, 1)
-                                    val msg = cadenceManager.awardProgress(20, 1)
-                                    if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                    isCatWorking = false
-                                    isCatDone = true
-                                }
-                            },
-                            onCompleteMilestone = { goalId, milestoneId ->
-                                catActionTitle = "Completing Step..."
-                                catDoneSaying = "Meow-gical! Step completed and locked in."
-                                isCatWorking = true
-                                isCatDone = false
-                                coroutineScope.launch {
-                                    delay(1400)
-                                    goalStateManager.toggleMilestone(goalId, milestoneId)
-                                    val msg = cadenceManager.awardProgress(40, 2)
-                                    if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                    isCatWorking = false
-                                    isCatDone = true
-                                }
-                            },
-                            ambientWeatherManager = ambientWeatherManager,
-                            onOpenGeminiSettings = { showGeminiSettingsDialog = true },
-                            onOpenWeatherSettings = { showAmbientWeatherDialog = true },
-                            onOpenConnectedApps = { showConnectedAppsDialog = true },
-                            onOpenConnectors = { showConnectorsDialog = true }
-                        )
-                        ArloTab.GOALS -> GoalsScreen(
-                            goalStateManager = goalStateManager
-                        )
-                        ArloTab.RESOURCES -> ResourcesScreen(
-                            state = state,
-                            resourceManager = resourceManager,
-                            geminiManager = geminiManager,
-                            onSaveToVault = { url, title, notes, tags ->
-                                repository.addSavedLink(
-                                    url = url,
-                                    title = title,
-                                    notes = notes,
-                                    tags = tags,
-                                    isFavorite = true
-                                )
-                                val msg = cadenceManager.awardProgress(20, 1)
-                                if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                        ArloTab.JOURNAL -> JournalScreen(
-                            journalStateManager = journalStateManager
-                        )
-                        ArloTab.LINKS -> LinksScreen(
-                            savedLinks = state.savedLinks,
-                            onAddLink = { url, title, notes, tags, isFavorite ->
-                                repository.addSavedLink(url, title, notes, tags, isFavorite)
-                                val msg = cadenceManager.awardProgress(20, 1)
-                                if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            },
-                            onUpdateLink = { link ->
-                                repository.updateSavedLink(link)
-                            },
-                            onDeleteLink = { id ->
-                                repository.deleteSavedLink(id)
-                            },
-                            onToggleFavorite = { id ->
-                                repository.toggleFavoriteLink(id)
-                            },
-                            onToggleRead = { id ->
-                                repository.toggleReadLink(id)
-                                rhythmManager.recordInteraction("toggle_link")
-                                val msg = cadenceManager.awardProgress(15, 1)
-                                if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                        ArloTab.PRIVACY -> PrivacyScreen(
-                            permissions = state.permissions,
-                            auditTrail = state.audit,
-                            onUpdatePermission = { key, enabled -> repository.updatePermission(key, enabled) },
-                            onPauseAll = { repository.pauseAllPermissions() },
-                            onLockArlo = onLockArlo,
-                            onChangePassphrase = { oldPass, newPass -> repository.changePassphrase(oldPass, newPass) },
-                            onExportBackup = { repository.exportEncryptedBackup() },
-                            onResetVault = onResetVault
-                        )
+                    when (activeSection) {
+                        MainSection.COMPANION -> {
+                            ArloCompanionScreen(
+                                state = state,
+                                repository = repository,
+                                geminiManager = geminiManager,
+                                onOpenLiveVoice = { showLiveVoiceDialog = true },
+                                onOpenAudioTranscribeDialog = { showAudioTranscriptionDialog = true },
+                                onOpenConnectors = { showConnectorsDialog = true },
+                                onOpenAudioRecorder = { showAudioAndCallRecorderDialog = true },
+                                onOpenVideoToText = { showVideoToTextDialog = true },
+                                onOpenCatReminders = { showCatReminderSchedulerDialog = true }
+                            )
+                        }
+                        MainSection.LIFE_VAULT -> {
+                            LifeVaultScreen(
+                                state = state,
+                                repository = repository,
+                                onLockArlo = onLockArlo,
+                                onResetVault = onResetVault,
+                                onOpenConnectors = { showConnectorsDialog = true },
+                                onOpenCloudSync = { showCloudSyncDialog = true },
+                                onOpenGlobalSearch = { showGlobalSearchDialog = true }
+                            )
+                        }
                     }
-
-                    // Floating Arlo companion bubble
-                    ArloBubbleButton(
-                        avatarSymbol = state.avatar,
-                        onClick = { showArloBubbleDialog = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 16.dp)
-                    )
                 }
             }
 
@@ -552,47 +295,16 @@ fun MainScaffold(
                 ) {
                     NavigationRail(
                         containerColor = ArloDarkSurface,
-                        modifier = Modifier.fillMaxHeight().testTag("tablet_nav_rail"),
-                        header = {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(vertical = 12.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(ArloPrimaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_cat_outline),
-                                        contentDescription = "Arlo",
-                                        tint = ArloPrimary,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Arlo", fontWeight = FontWeight.Bold, color = ArloTextPrimary, fontSize = 12.sp)
-                            }
-                        }
+                        modifier = Modifier.width(180.dp)
                     ) {
-                        ArloTab.entries.forEach { tab ->
-                            val isSelected = activeTab == tab
+                        Spacer(modifier = Modifier.height(12.dp))
+                        MainSection.values().forEach { section ->
+                            val isSelected = activeSection == section
                             NavigationRailItem(
                                 selected = isSelected,
-                                onClick = { activeTab = tab },
-                                icon = {
-                                    val iconText = if (tab == ArloTab.TODAY) atmosphere.todayModuleIcon else tab.icon
-                                    Text(iconText, fontSize = 20.sp)
-                                },
-                                label = {
-                                    Text(
-                                        tab.label,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
+                                onClick = { activeSection = section },
+                                label = { Text(section.label, fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                                icon = { Text(section.icon, fontSize = 22.sp) },
                                 colors = NavigationRailItemDefaults.colors(
                                     selectedIconColor = ArloPrimary,
                                     selectedTextColor = ArloPrimary,
@@ -600,23 +312,11 @@ fun MainScaffold(
                                     unselectedTextColor = ArloTextMuted,
                                     indicatorColor = ArloPrimaryContainer
                                 ),
-                                modifier = Modifier.testTag("rail_tab_${tab.name.lowercase()}")
+                                modifier = Modifier.testTag(section.testTag)
                             )
                         }
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        contentAlignment = Alignment.TopCenter
-                    ) {
-                        screenContent(
-                            Modifier
-                                .fillMaxSize()
-                                .widthIn(max = 1100.dp)
-                        )
-                    }
+                    screenContent(Modifier.fillMaxSize())
                 }
             } else {
                 screenContent(
@@ -628,28 +328,15 @@ fun MainScaffold(
         }
     }
 
-    if (showArloBubbleDialog) {
-        ArloBubbleDialog(
-            currentAvatar = state.avatar,
-            onAvatarChange = {
-                repository.setAvatar(it)
-                showArloBubbleDialog = false
-            },
-            onDismiss = { showArloBubbleDialog = false }
+    // Floating Bubble Overlay
+    if (isFloatingBubbleActive) {
+        ArloBubbleButton(
+            avatarSymbol = state.avatar,
+            onClick = { activeSection = MainSection.COMPANION }
         )
     }
 
-    if (showConnectorsDialog) {
-        ConnectorsDialog(
-            repository = repository,
-            connections = connections,
-            onRequestConnection = { provider ->
-                repository.requestConnection(provider)
-            },
-            onDismiss = { showConnectorsDialog = false }
-        )
-    }
-
+    // Dialogs
     if (showGeminiSettingsDialog) {
         GeminiSettingsDialog(
             geminiManager = geminiManager,
@@ -716,6 +403,123 @@ fun MainScaffold(
         NaturalRhythmDialog(
             rhythmManager = rhythmManager,
             onDismiss = { showNaturalRhythmDialog = false }
+        )
+    }
+
+    if (showLiveVoiceDialog) {
+        LiveVoiceConversationDialog(
+            geminiManager = geminiManager,
+            state = state,
+            onDismiss = { showLiveVoiceDialog = false }
+        )
+    }
+
+    if (showAudioTranscriptionDialog) {
+        AudioTranscriptionDialog(
+            geminiManager = geminiManager,
+            onDismiss = { showAudioTranscriptionDialog = false },
+            onTranscribedText = { text, destination ->
+                when (destination) {
+                    "task" -> {
+                        repository.addTask(text)
+                        Toast.makeText(context, "Added sprint task from voice!", Toast.LENGTH_SHORT).show()
+                    }
+                    "goal" -> {
+                        repository.addGoal(title = text, detail = "Transcribed via voice note")
+                        Toast.makeText(context, "Added intention goal from voice!", Toast.LENGTH_SHORT).show()
+                    }
+                    "journal" -> {
+                        repository.addNote(body = text, mood = "Steady", prompt = "Audio Voice Note")
+                        Toast.makeText(context, "Recorded reflection from voice!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
+    if (showCloudSyncDialog) {
+        CloudSyncDialog(
+            repository = repository,
+            geminiManager = geminiManager,
+            onDismiss = { showCloudSyncDialog = false }
+        )
+    }
+
+    if (showGlobalSearchDialog) {
+        GlobalRoomSearchDialog(
+            roomTasks = roomTasks,
+            roomGoals = roomGoals,
+            roomReflections = roomReflections,
+            savedLinks = state.savedLinks,
+            smsMessages = smsMessages,
+            emails = emails,
+            onToggleTask = { repository.toggleTask(it) },
+            onConvertExternalToTask = {
+                repository.addTask(it)
+                Toast.makeText(context, "Added as sprint task!", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { showGlobalSearchDialog = false }
+        )
+    }
+
+    if (showSmsAndEmailReaderDialog) {
+        SmsAndEmailReaderDialog(
+            smsAndEmailManager = smsAndEmailManager,
+            onConvertToTask = {
+                repository.addTask(it)
+                Toast.makeText(context, "Added to tasks!", Toast.LENGTH_SHORT).show()
+            },
+            onConvertToGoal = {
+                repository.addGoal(title = it, detail = "Imported from communication")
+                Toast.makeText(context, "Added to goals!", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { showSmsAndEmailReaderDialog = false }
+        )
+    }
+
+    if (showConnectorsDialog) {
+        ConnectorsDialog(
+            repository = repository,
+            connections = connections,
+            onRequestConnection = { repository.requestConnection(it) },
+            onDismiss = { showConnectorsDialog = false }
+        )
+    }
+
+    if (showAudioAndCallRecorderDialog) {
+        AudioAndCallRecorderDialog(
+            geminiManager = geminiManager,
+            onDismiss = { showAudioAndCallRecorderDialog = false },
+            onSaveNoteToVault = { title, body, mood ->
+                repository.addNote(body = body, mood = mood, prompt = title)
+            },
+            onAddActionItemsToTasks = { items ->
+                items.forEach { taskTitle -> repository.addTask(taskTitle) }
+            }
+        )
+    }
+
+    if (showVideoToTextDialog) {
+        VideoToTextDialog(
+            geminiManager = geminiManager,
+            onDismiss = { showVideoToTextDialog = false },
+            onSaveNoteToVault = { title, body, mood ->
+                repository.addNote(body = body, mood = mood, prompt = title)
+            },
+            onSaveLinkToResources = { url, title, notes, tags ->
+                repository.addSavedLink(url = url, title = title, notes = notes, tags = tags, isFavorite = true)
+            },
+            onAddActionItemsToTasks = { items ->
+                items.forEach { taskTitle -> repository.addTask(taskTitle) }
+            }
+        )
+    }
+
+    if (showCatReminderSchedulerDialog) {
+        com.example.arlo.ui.components.CatReminderSchedulerDialog(
+            tasks = state.tasks,
+            notificationManager = catNotificationManager,
+            onDismiss = { showCatReminderSchedulerDialog = false }
         )
     }
 

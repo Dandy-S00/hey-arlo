@@ -31,10 +31,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.arlo.data.ArloRepository
 import com.example.arlo.data.GoalFilterType
 import com.example.arlo.data.GoalStateManager
 import com.example.arlo.model.Goal
 import com.example.arlo.ui.components.CatWorkingDialog
+import com.example.arlo.ui.components.RoomCompletionVisualizationCard
 import com.example.arlo.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -42,11 +44,15 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GoalsScreen(
-    goalStateManager: GoalStateManager
+    goalStateManager: GoalStateManager,
+    repository: ArloRepository? = null
 ) {
     val goals by goalStateManager.filteredGoalsFlow.collectAsState()
     val metrics by goalStateManager.metricsFlow.collectAsState()
     val filterState by goalStateManager.filterState.collectAsState()
+
+    val roomGoals by (repository?.roomGoals ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(initial = emptyList())
+    val roomTasks by (repository?.roomTasks ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(initial = emptyList())
 
     var showDefineDialog by remember { mutableStateOf(false) }
     var selectedGoalForMilestone by remember { mutableStateOf<String?>(null) }
@@ -78,7 +84,8 @@ fun GoalsScreen(
                     Text(
                         text = "INTENTIONS & DIRECTION",
                         style = MaterialTheme.typography.labelSmall,
-                        color = ArloPrimary
+                        color = ArloPrimary,
+                        fontWeight = FontWeight.ExtraBold
                     )
                     Text(
                         text = "What I'm Moving Toward",
@@ -97,11 +104,19 @@ fun GoalsScreen(
                     ),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Add, contentDescription = null, tint = ArloOnPrimary, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Intention", fontWeight = FontWeight.Bold)
+                    Text("Add Intention", color = ArloOnPrimary, fontWeight = FontWeight.Black)
                 }
             }
+        }
+
+        // Room SQLite Completion Over Time Chart
+        item {
+            RoomCompletionVisualizationCard(
+                roomGoals = roomGoals,
+                roomTasks = roomTasks
+            )
         }
 
         // Metrics Banner Card
